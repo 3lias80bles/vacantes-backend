@@ -72,9 +72,9 @@ python -m pip install -r requirements.txt
 
 ### 5. Configurar las variables de entorno
 
-Si el proyecto necesita variables de entorno, consultar
-`.env.example` y crear un archivo `.env` con la configuración
-local correspondiente.
+Copiar `.env.example` como `.env` y establecer `DATABASE_URL` con la
+URL de conexión de PostgreSQL. La aplicación carga automáticamente
+`.env` al iniciar.
 
 No compartir contraseñas ni credenciales en GitHub.
 
