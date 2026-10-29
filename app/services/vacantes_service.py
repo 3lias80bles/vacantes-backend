@@ -44,3 +44,22 @@ def buscar_vacantes(palabra_clave):
         Vacante.fecha_publicacion.desc(),
         Vacante.id.desc(),
     ).all()
+
+
+def obtener_vacante_por_id(vacante_id):
+    """
+    Obtiene una vacante visible para el público mediante su identificador.
+
+    Args:
+        vacante_id (int): Identificador de la vacante.
+
+    Returns:
+        Vacante | None: La vacante encontrada, o None si no existe
+        o está desactivada.
+    """
+    # Las vacantes desactivadas no se muestran en la consulta pública.
+    # "IS NOT false" también acepta las que no tienen valor en 'activa'.
+    return Vacante.query.filter(
+        Vacante.id == vacante_id,
+        Vacante.activa.isnot(False),
+    ).first()

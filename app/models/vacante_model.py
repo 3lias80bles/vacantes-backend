@@ -11,3 +11,6 @@ class Vacante(db.Model):
     categoria = db.Column(db.String(100))
     ubicacion = db.Column(db.String(150))
     tipo_empleo = db.Column(db.String(50))
+    sueldo = db.Column(db.Float)
+    contacto = db.Column(db.String)
+    activa = db.Column(db.Boolean)
