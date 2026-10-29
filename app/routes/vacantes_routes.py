@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models.vacante_model import Vacante
-from app.services.vacantes_service import buscar_vacantes
+from app.services.vacantes_service import buscar_vacantes, obtener_vacante_por_id
 
 
 # Definición del Blueprint (esto es lo que está buscando __init__.py)
@@ -101,4 +101,56 @@ def buscar_vacantes_endpoint():
         return jsonify({
             "error": "No fue posible realizar la búsqueda.",
             "resultados": []
+        }), 500
+
+@vacantes_bp.get("/api/vacantes/<int:vacante_id>")
+def obtener_vacante_endpoint(vacante_id):
+    """
+    Consulta el detalle completo de una vacante por su identificador.
+
+    Ex. GET /api/vacantes/6
+    """
+    try:
+        vacante = obtener_vacante_por_id(vacante_id)
+
+        # Una vacante desactivada responde igual que una inexistente,
+        # para no revelar su existencia en la consulta pública.
+        if vacante is None:
+            return jsonify({
+                "status": "error",
+                "mensaje": "Vacante no encontrada."
+            }), 404
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "id": vacante.id,
+                "nombre": vacante.nombre,
+                "descripcion": vacante.descripcion,
+                "detalle": vacante.detalle,
+                "categoria": vacante.categoria,
+                "ubicacion": vacante.ubicacion,
+                "tipo_empleo": vacante.tipo_empleo,
+                "sueldo": vacante.sueldo,
+                "contacto": vacante.contacto,
+                "fecha_publicacion": (
+                    vacante.fecha_publicacion.isoformat()
+                    if vacante.fecha_publicacion
+                    else None
+                ),
+            }
+        }), 200
+
+    except Exception:
+        # Registra el error real en el servidor sin exponer detalles internos
+        # de la base de datos en la respuesta HTTP.
+        from flask import current_app
+
+        current_app.logger.exception(
+            "Error al consultar la vacante."
+        )
+
+        return jsonify({
+            "status": "error",
+            "mensaje": "No fue posible consultar la vacante."
         }), 500
