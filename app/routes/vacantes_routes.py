@@ -1,5 +1,7 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
 from app.models.vacante_model import Vacante
+from app.services.vacantes_service import buscar_vacantes
+from app.services.vacantes_service import listar_vacantes
 from app.services.vacantes_service import buscar_vacantes, obtener_vacante_por_id
 
 
@@ -101,6 +103,68 @@ def buscar_vacantes_endpoint():
         return jsonify({
             "error": "No fue posible realizar la búsqueda.",
             "resultados": []
+        }), 500
+    
+@vacantes_bp.get("/api/vacantes/listar")
+def listar_vacantes_endpoint():
+    """
+    Lista las vacantes disponibles con paginación.
+
+    Ejemplos:
+        GET /vacantes/
+        GET /vacantes/listar?page=2
+    """
+    page_param = request.args.get("page", "2")
+
+    try:
+        page = int(page_param)
+    except (TypeError, ValueError):
+        return jsonify({
+            "error": "El parámetro 'page' debe ser un número entero."
+        }), 400
+
+    if page < 1:
+        return jsonify({
+            "error": "El número de página debe ser mayor o igual a 1."
+        }), 400
+
+    try:
+        paginacion = listar_vacantes(page=page)
+
+        resultados = [
+            {
+                "id": vacante.id,
+                "titulo": vacante.nombre,
+                "ubicacion": vacante.ubicacion,
+                "resumen": vacante.descripcion,
+                "fecha_publicacion": (
+                    vacante.fecha_publicacion.isoformat()
+                    if vacante.fecha_publicacion
+                    else None
+                ),
+            }
+            for vacante in paginacion.items
+        ]
+
+        return jsonify({
+            "resultados": resultados,
+            "paginacion": {
+                "pagina_actual": paginacion.page,
+                "por_pagina": paginacion.per_page,
+                "total_resultados": paginacion.total,
+                "total_paginas": paginacion.pages,
+                "hay_pagina_anterior": paginacion.has_prev,
+                "hay_pagina_siguiente": paginacion.has_next,
+            },
+        }), 200
+
+    except Exception:
+        current_app.logger.exception(
+            "Error al obtener el listado de vacantes."
+        )
+
+        return jsonify({
+            "error": "No fue posible obtener las vacantes."
         }), 500
 
 @vacantes_bp.get("/api/vacantes/<int:vacante_id>")
