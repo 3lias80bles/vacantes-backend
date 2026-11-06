@@ -3,6 +3,7 @@ from datetime import date
 from sqlalchemy import or_
 
 from app.models.vacante_model import Vacante
+from app.models.vacante_model import Vacante
 
 
 def buscar_vacantes(palabra_clave):
@@ -45,6 +46,34 @@ def buscar_vacantes(palabra_clave):
         Vacante.id.desc(),
     ).all()
 
+def listar_vacantes(page=1):
+    """
+    Obtiene el listado paginado de vacantes publicadas.
+
+    Args:
+        page (int): Número de página solicitada.
+
+    Returns:
+        Pagination: Objeto de paginación de Flask-SQLAlchemy.
+    """
+    limite = 4
+
+    consulta = Vacante.query.filter(
+        Vacante.fecha_publicacion.isnot(None),
+        Vacante.fecha_publicacion <= date.today(),
+        Vacante.activa.isnot(False),
+    )
+
+    consulta = consulta.order_by(
+        Vacante.fecha_publicacion.desc(),
+        Vacante.id.desc(),
+    )
+
+    return consulta.paginate(
+        page=page,
+        per_page=limite,
+        error_out=False,
+    )
 
 def obtener_vacante_por_id(vacante_id):
     """
