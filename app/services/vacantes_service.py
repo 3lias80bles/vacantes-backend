@@ -3,7 +3,6 @@ from datetime import date
 from sqlalchemy import or_
 
 from app.models.vacante_model import Vacante
-from app.models.vacante_model import Vacante
 
 
 def buscar_vacantes(palabra_clave):
@@ -92,3 +91,19 @@ def obtener_vacante_por_id(vacante_id):
         Vacante.id == vacante_id,
         Vacante.activa.isnot(False),
     ).first()
+
+def filtrar_vacantes(categoria=None, ubicacion=None, tipo_empleo=None):
+    """
+    Obtiene las vacantes que coinciden con los filtros indicados.
+    Los filtros vacíos se ignoran.
+    """
+    consulta = Vacante.query
+
+    if categoria:
+        consulta = consulta.filter(Vacante.categoria.ilike(f"%{categoria}%"))
+    if ubicacion:
+        consulta = consulta.filter(Vacante.ubicacion.ilike(f"%{ubicacion}%"))
+    if tipo_empleo:
+        consulta = consulta.filter(Vacante.tipo_empleo.ilike(f"%{tipo_empleo}%"))
+
+    return consulta.all()

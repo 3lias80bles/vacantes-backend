@@ -1,47 +1,31 @@
-from flask import Blueprint, current_app, request, jsonify
-from app.models.vacante_model import Vacante
+from flask import Blueprint, request
+
+from app.errors import NoEncontrado, ValidacionError
 from app.services.vacantes_service import buscar_vacantes
 from app.services.vacantes_service import listar_vacantes
 from app.services.vacantes_service import buscar_vacantes, obtener_vacante_por_id
+from app.services.vacantes_service import filtrar_vacantes
 
+from app.utils.respuestas import exito
 
 # Definición del Blueprint (esto es lo que está buscando __init__.py)
 vacantes_bp = Blueprint('vacantes_bp', __name__)
 
+"""
+    Lista de vacantes con filtros opcionaes: 
+    - categoria
+    - ubicacion
+    - tipo_empleo
+"""
 @vacantes_bp.route('/api/vacantes', methods=['GET'])
 def obtener_vacantes():
-    try:
-        categoria = request.args.get('categoria')
-        ubicacion = request.args.get('ubicacion')
-        tipo_empleo = request.args.get('tipo_empleo')
-
-        query = Vacante.query
-
-        if categoria:
-            query = query.filter(Vacante.categoria.ilike(f"%{categoria}%"))
-        if ubicacion:
-            query = query.filter(Vacante.ubicacion.ilike(f"%{ubicacion}%"))
-        if tipo_empleo:
-            query = query.filter(Vacante.tipo_empleo.ilike(f"%{tipo_empleo}%"))
-
-        vacantes = query.all()
-
-        resultado = [{
-            "id": v.id,
-            "nombre": v.nombre,
-            "descripcion": v.descripcion,
-            "detalle": v.detalle,
-            "categoria": v.categoria,
-            "ubicacion": v.ubicacion,
-            "tipo_empleo": v.tipo_empleo,
-            "fecha_publicacion": str(v.fecha_publicacion) if v.fecha_publicacion else None
-        } for v in vacantes]
-
-        return jsonify({"status": "success", "total": len(resultado), "data": resultado}), 200
-
-    except Exception as e:
-        return jsonify({"status": "error", "mensaje": str(e)}), 400
-
+    vacantes = filtrar_vacantes(
+        categoria=request.args.get("categoria"),
+        ubicacion=request.args.get("ubicacion"),
+        tipo_empleo=request.args.get("tipo_empleo"),
+    )
+    data = [v.to_dict() for v in vacantes]
+    return exito(data, "Vacantes obtenidas.", meta={"total": len(data)})
 
 @vacantes_bp.get("/api/vacantes/buscar")
 def buscar_vacantes_endpoint():
@@ -51,59 +35,20 @@ def buscar_vacantes_endpoint():
     Ejemplo:
     GET /vacantes/buscar?q=Python
     """
-    palabra_clave = request.args.get("q", "")
+    palabra_clave = request.args.get("q", "").strip()
 
-    if not palabra_clave.strip():
-        return jsonify({
-            "error": "El parámetro 'q' es obligatorio.",
-            "resultados": []
-        }), 400
+    if not palabra_clave:
+        raise ValidacionError(errores=[
+            {"campo": "q", "mensaje": "El parámetro 'q' es obligatorio."}
+        ])
+    if len(palabra_clave) > 100:
+        raise ValidacionError(errores=[
+            {"campo": "q", "mensaje": "La búsqueda no puede superar los 100 caracteres."}
+        ])
 
-    if len(palabra_clave.strip()) > 100:
-        return jsonify({
-            "error": "La búsqueda no puede superar los 100 caracteres.",
-            "resultados": []
-        }), 400
-
-    try:
-        vacantes = buscar_vacantes(palabra_clave)
-
-        resultados = [
-            {
-                "id": vacante.id,
-                "nombre": vacante.nombre,
-                "descripcion": vacante.descripcion,
-                "detalle": vacante.detalle,
-                "categoria": vacante.categoria,
-                "ubicacion": vacante.ubicacion,
-                "tipo_empleo": vacante.tipo_empleo,
-                "fecha_publicacion": (
-                    vacante.fecha_publicacion.isoformat()
-                    if vacante.fecha_publicacion
-                    else None
-                ),
-            }
-            for vacante in vacantes
-        ]
-
-        return jsonify({
-            "total": len(resultados),
-            "resultados": resultados
-        }), 200
-
-    except Exception:
-        # Registra el error real en el servidor sin exponer detalles internos
-        # de la base de datos en la respuesta HTTP.
-        from flask import current_app
-
-        current_app.logger.exception(
-            "Error al buscar vacantes."
-        )
-
-        return jsonify({
-            "error": "No fue posible realizar la búsqueda.",
-            "resultados": []
-        }), 500
+    vacantes = buscar_vacantes(palabra_clave)
+    data = [v.to_dict() for v in vacantes]
+    return exito(data, "Búsqueda realizada.", meta={"total": len(data)})
     
 @vacantes_bp.get("/api/vacantes/listar")
 def listar_vacantes_endpoint():
@@ -114,58 +59,28 @@ def listar_vacantes_endpoint():
         GET /vacantes/
         GET /vacantes/listar?page=2
     """
-    page_param = request.args.get("page", "2")
+    error_page = ValidacionError(errores=[
+        {"campo": "page", "mensaje": "Debe ser un número entero mayor o igual a 1."}
+    ])
 
     try:
-        page = int(page_param)
-    except (TypeError, ValueError):
-        return jsonify({
-            "error": "El parámetro 'page' debe ser un número entero."
-        }), 400
+        page = int(request.args.get("page", "1"))
+    except ValueError:
+        raise error_page
 
     if page < 1:
-        return jsonify({
-            "error": "El número de página debe ser mayor o igual a 1."
-        }), 400
+        raise error_page
 
-    try:
-        paginacion = listar_vacantes(page=page)
-
-        resultados = [
-            {
-                "id": vacante.id,
-                "titulo": vacante.nombre,
-                "ubicacion": vacante.ubicacion,
-                "resumen": vacante.descripcion,
-                "fecha_publicacion": (
-                    vacante.fecha_publicacion.isoformat()
-                    if vacante.fecha_publicacion
-                    else None
-                ),
-            }
-            for vacante in paginacion.items
-        ]
-
-        return jsonify({
-            "resultados": resultados,
-            "paginacion": {
-                "pagina_actual": paginacion.page,
-                "por_pagina": paginacion.per_page,
-                "total_resultados": paginacion.total,
-                "total_paginas": paginacion.pages,
-                "hay_pagina_anterior": paginacion.has_prev,
-                "hay_pagina_siguiente": paginacion.has_next,
-            },
-        }), 200
-
-    except Exception:
-        current_app.logger.exception(
-            "Error al obtener el listado de vacantes."
-        )
-
-        return jsonify({
-            "error": "No fue posible obtener las vacantes."
-        }), 500
+    paginacion = listar_vacantes(page=page)
+    data = [v.to_dict() for v in paginacion.items]
+    return exito(data, "Vacantes obtenidas.", meta={
+        "pagina_actual": paginacion.page,
+        "por_pagina": paginacion.per_page,
+        "total_resultados": paginacion.total,
+        "total_paginas": paginacion.pages,
+        "hay_pagina_anterior": paginacion.has_prev,
+        "hay_pagina_siguiente": paginacion.has_next,
+    })
 
 @vacantes_bp.get("/api/vacantes/<int:vacante_id>")
 def obtener_vacante_endpoint(vacante_id):
@@ -174,47 +89,11 @@ def obtener_vacante_endpoint(vacante_id):
 
     Ex. GET /api/vacantes/6
     """
-    try:
-        vacante = obtener_vacante_por_id(vacante_id)
 
-        # Una vacante desactivada responde igual que una inexistente,
-        # para no revelar su existencia en la consulta pública.
-        if vacante is None:
-            return jsonify({
-                "status": "error",
-                "mensaje": "Vacante no encontrada."
-            }), 404
+    vacante = obtener_vacante_por_id(vacante_id)
 
-        return jsonify({
-            "status": "success",
-            "data": {
-                "id": vacante.id,
-                "nombre": vacante.nombre,
-                "descripcion": vacante.descripcion,
-                "detalle": vacante.detalle,
-                "categoria": vacante.categoria,
-                "ubicacion": vacante.ubicacion,
-                "tipo_empleo": vacante.tipo_empleo,
-                "sueldo": vacante.sueldo,
-                "contacto": vacante.contacto,
-                "fecha_publicacion": (
-                    vacante.fecha_publicacion.isoformat()
-                    if vacante.fecha_publicacion
-                    else None
-                ),
-            }
-        }), 200
+    # Una vacante desactivada responde igual que una inexistente.
+    if vacante is None:
+        raise NoEncontrado("Vacante no encontrada.")
 
-    except Exception:
-        # Registra el error real en el servidor sin exponer detalles internos
-        # de la base de datos en la respuesta HTTP.
-        from flask import current_app
-
-        current_app.logger.exception(
-            "Error al consultar la vacante."
-        )
-
-        return jsonify({
-            "status": "error",
-            "mensaje": "No fue posible consultar la vacante."
-        }), 500
+    return exito(vacante.to_dict(completo=True), "Vacante obtenida.") 

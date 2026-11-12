@@ -10,6 +10,10 @@ def create_app():
 
     db.init_app(app)
 
+    # Registrar manejadores de errores    
+    from app.errors import registrar_manejadores
+    registrar_manejadores(app)
+
     # Registrar las rutas
     from app.routes.vacantes_routes import vacantes_bp
     app.register_blueprint(vacantes_bp)
