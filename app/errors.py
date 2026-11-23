@@ -72,3 +72,19 @@ def registrar_manejadores(app):
     def manejar_inesperado(e):
         current_app.logger.exception("Error interno no controlado.")
         return error("Ocurrió un error interno. Intenta más tarde.", 500)
+    
+
+# Esta función registra los manejadores de errores de JWT en la extensión Flask-JWT-Extended.
+def registrar_manejadores_jwt(jwt):
+
+    @jwt.unauthorized_loader
+    def sin_token(motivo):
+        return error("Se requiere autenticación.", 401)
+
+    @jwt.invalid_token_loader
+    def token_invalido(motivo):
+        return error("Token inválido.", 401)
+
+    @jwt.expired_token_loader
+    def token_expirado(header, payload):
+        return error("El token ha expirado.", 401)

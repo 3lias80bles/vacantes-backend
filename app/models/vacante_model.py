@@ -14,6 +14,7 @@ class Vacante(db.Model):
     sueldo = db.Column(db.Float)
     contacto = db.Column(db.String)
     activa = db.Column(db.Boolean)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuario.id'))
 
     # Método para convertir el objeto Vacante a un diccionario
     def to_dict(self, completo=False):
@@ -21,7 +22,7 @@ class Vacante(db.Model):
             "id": self.id,
             "nombre": self.nombre,
             "descripcion": self.descripcion,
-            "detalle": self.detalle,
+            "detalle": self.detalle, 
             "categoria": self.categoria,
             "ubicacion": self.ubicacion,
             "tipo_empleo": self.tipo_empleo,
@@ -34,4 +35,12 @@ class Vacante(db.Model):
         if completo:
             datos["sueldo"] = self.sueldo
             datos["contacto"] = self.contacto
+        return datos
+    
+    # Datos básicos más el estado, para la consulta del administrador
+    def to_dict_admin(self):
+        datos = self.to_dict()
+        activa = self.activa is not False
+        datos["activa"] = activa
+        datos["estado"] = "activa" if activa else "inactiva"
         return datos

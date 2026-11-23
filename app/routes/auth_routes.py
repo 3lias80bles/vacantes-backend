@@ -22,12 +22,13 @@ def login():
             }), 401
 
         #Genera el token de acceso JWT
-        access_token = create_access_token(identity=usuario.id)
+        access_token = create_access_token(identity=str(usuario.id))
 
         # Responde sin exponer las contraseñas ni los hashes de las contraseñas 
         return jsonify({
             "status": "success",
             "mensaje": "Autenticación exitosa.",
+            "access_token": access_token,
             "usuario": {
                 "id": usuario.id,
                 "nombre": usuario.nombre,
