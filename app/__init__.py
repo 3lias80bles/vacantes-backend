@@ -15,15 +15,18 @@ def create_app():
     db.init_app(app)
     jwt.init_app(app)
 
-    # Registrar manejadores de errores    
-    from app.errors import registrar_manejadores
+    # Registrar manejadores de errores
+    from app.errors import registrar_manejadores, registrar_manejadores_jwt
     registrar_manejadores(app)
+    registrar_manejadores_jwt(jwt)
 
     # Registrar las rutas (después de inicializar db)
     from app.routes.vacantes_routes import vacantes_bp
     from app.routes.auth_routes import auth_bp
+    from app.routes.admin_routes import admin_bp
 
     app.register_blueprint(vacantes_bp)
     app.register_blueprint(auth_bp)
-
+    app.register_blueprint(admin_bp)
+    
     return app

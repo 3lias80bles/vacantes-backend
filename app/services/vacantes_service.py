@@ -107,3 +107,12 @@ def filtrar_vacantes(categoria=None, ubicacion=None, tipo_empleo=None):
         consulta = consulta.filter(Vacante.tipo_empleo.ilike(f"%{tipo_empleo}%"))
 
     return consulta.all()
+
+def listar_vacantes_admin(id_usuario):
+    """
+    Obtiene todas las vacantes del administrador indicado,
+    activas e inactivas. Lista vacía si no tiene ninguna.
+    """
+    return Vacante.query.filter(
+        Vacante.id_usuario == id_usuario,
+    ).order_by(Vacante.id.desc()).all()
