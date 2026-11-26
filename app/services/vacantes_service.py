@@ -1,10 +1,30 @@
 from datetime import date, datetime
+from math import isfinite
 
 from sqlalchemy import or_
 
 from app import db
-from app.utils.errors import ValidacionError
+from app.errors import ValidacionError
 from app.models.vacante_model import Vacante
+
+
+def _error_validacion(campo, mensaje):
+    return ValidacionError(errores=[{"campo": campo, "mensaje": mensaje}])
+
+
+def _texto_opcional(data, campo, limite=None):
+    valor = data.get(campo)
+    if valor is None or valor == "":
+        return None
+    if not isinstance(valor, str):
+        raise _error_validacion(campo, "Debe ser texto.")
+
+    valor = valor.strip()
+    if not valor:
+        return None
+    if limite is not None and len(valor) > limite:
+        raise _error_validacion(campo, f"No puede superar los {limite} caracteres.")
+    return valor
 
 
 def buscar_vacantes(palabra_clave):
@@ -124,40 +144,46 @@ def crear_vacante(data, administrador_id=None):
     Valida y registra una nueva vacante en la base de datos.
     """
     if not isinstance(data, dict):
-        raise ValidacionError("El cuerpo de la solicitud debe ser un objeto JSON válido.")
+        raise _error_validacion("body", "El cuerpo de la solicitud debe ser un objeto JSON válido.")
 
-    nombre = (data.get("nombre") or "").strip()
-    descripcion = (data.get("descripcion") or "").strip()
+    nombre = data.get("nombre")
+    if not isinstance(nombre, str) or not nombre.strip():
+        raise _error_validacion("nombre", "El nombre es obligatorio y debe ser texto.")
+    nombre = nombre.strip()
 
-    if not nombre:
-        raise ValidacionError("El nombre es obligatorio.")
     if len(nombre) > 250:
-        raise ValidacionError("El nombre no puede superar los 250 caracteres.")
+        raise _error_validacion("nombre", "No puede superar los 250 caracteres.")
 
-    if not descripcion:
-        raise ValidacionError("La descripción es obligatoria.")
+    descripcion = data.get("descripcion")
+    if not isinstance(descripcion, str) or not descripcion.strip():
+        raise _error_validacion("descripcion", "La descripción es obligatoria y debe ser texto.")
+    descripcion = descripcion.strip()
 
     sueldo = data.get("sueldo")
     sueldo_val = None
     if sueldo is not None and sueldo != "":
         if isinstance(sueldo, bool):
-            raise ValidacionError("El sueldo debe ser un número válido.")
+            raise _error_validacion("sueldo", "Debe ser un número válido.")
         try:
             sueldo_val = float(sueldo)
-        except (ValueError, TypeError):
-            raise ValidacionError("El sueldo debe ser un número válido.")
+        except (ValueError, TypeError, OverflowError):
+            raise _error_validacion("sueldo", "Debe ser un número válido.")
+        if not isfinite(sueldo_val):
+            raise _error_validacion("sueldo", "Debe ser un número finito.")
         if sueldo_val < 0:
-            raise ValidacionError("El sueldo no puede ser negativo.")
+            raise _error_validacion("sueldo", "No puede ser negativo.")
 
     fecha_raw = data.get("fecha_publicacion")
     fecha_pub = date.today()
     if fecha_raw is not None and fecha_raw != "":
         if not isinstance(fecha_raw, str):
-            raise ValidacionError("La fecha de publicación debe tener el formato YYYY-MM-DD.")
+            raise _error_validacion("fecha_publicacion", "Debe tener el formato YYYY-MM-DD.")
         try:
-            fecha_pub = datetime.strptime(fecha_raw.strip(), "%Y-%m-%d").date()
+            fecha_pub = datetime.strptime(fecha_raw, "%Y-%m-%d").date()
         except ValueError:
-            raise ValidacionError("La fecha de publicación debe tener el formato YYYY-MM-DD.")
+            raise _error_validacion("fecha_publicacion", "Debe tener el formato YYYY-MM-DD.")
+        if fecha_pub.isoformat() != fecha_raw:
+            raise _error_validacion("fecha_publicacion", "Debe tener el formato YYYY-MM-DD.")
 
     activa_raw = data.get("activa", True)
     if isinstance(activa_raw, bool):
@@ -165,18 +191,24 @@ def crear_vacante(data, administrador_id=None):
     elif isinstance(activa_raw, str) and activa_raw.strip().lower() in ("true", "false"):
         activa = activa_raw.strip().lower() == "true"
     else:
-        raise ValidacionError("El valor de 'activa' debe ser booleano (true o false).")
+        raise _error_validacion("activa", "Debe ser booleano (true o false).")
+
+    detalle = _texto_opcional(data, "detalle")
+    categoria = _texto_opcional(data, "categoria", 100)
+    ubicacion = _texto_opcional(data, "ubicacion", 150)
+    tipo_empleo = _texto_opcional(data, "tipo_empleo", 50)
+    contacto = _texto_opcional(data, "contacto")
 
     nueva_vacante = Vacante(
         fecha_publicacion=fecha_pub,
         nombre=nombre,
         descripcion=descripcion,
-        detalle=(data.get("detalle") or "").strip() or None,
-        categoria=(data.get("categoria") or "").strip() or None,
-        ubicacion=(data.get("ubicacion") or "").strip() or None,
-        tipo_empleo=(data.get("tipo_empleo") or "").strip() or None,
+        detalle=detalle,
+        categoria=categoria,
+        ubicacion=ubicacion,
+        tipo_empleo=tipo_empleo,
         sueldo=sueldo_val,
-        contacto=(data.get("contacto") or "").strip() or None,
+        contacto=contacto,
         activa=activa,
         id_usuario=administrador_id,
     )
