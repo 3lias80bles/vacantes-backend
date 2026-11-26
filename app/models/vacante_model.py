@@ -26,6 +26,9 @@ class Vacante(db.Model):
             "categoria": self.categoria,
             "ubicacion": self.ubicacion,
             "tipo_empleo": self.tipo_empleo,
+            "sueldo": self.sueldo,
+            "contacto": self.contacto,
+            "activa": self.activa,
             "fecha_publicacion": (
                 self.fecha_publicacion.isoformat()
                 if self.fecha_publicacion
@@ -43,4 +46,5 @@ class Vacante(db.Model):
         activa = self.activa is not False
         datos["activa"] = activa
         datos["estado"] = "activa" if activa else "inactiva"
+        datos["id_usuario"] = self.id_usuario
         return datos

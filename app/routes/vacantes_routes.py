@@ -1,7 +1,11 @@
 from flask import Blueprint, request
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
+from app import db
 from app.errors import NoEncontrado, ValidacionError
+from app.models.usuario_model import Usuario
 from app.services.vacantes_service import buscar_vacantes
+from app.services.vacantes_service import crear_vacante
 from app.services.vacantes_service import listar_vacantes
 from app.services.vacantes_service import buscar_vacantes, obtener_vacante_por_id
 from app.services.vacantes_service import filtrar_vacantes
@@ -10,6 +14,33 @@ from app.utils.respuestas import exito
 
 # Definición del Blueprint (esto es lo que está buscando __init__.py)
 vacantes_bp = Blueprint('vacantes_bp', __name__)
+
+@vacantes_bp.post("/api/vacantes")
+@jwt_required()
+def crear_vacante_endpoint():
+    """
+    Registra una nueva vacante.
+    Solo accesible para los usuarios autenticados con el perfinl de "Administrador"y el estatus "Activo".
+    """
+    usuario_id = get_jwt_identity()
+    usuario = db.session.get(Usuario, int(usuario_id))
+
+    perfil = (usuario.perfil or "").strip().lower() if usuario else ""
+    estatus = (usuario.estatus or "").strip().lower() if usuario else ""
+
+    if not usuario or estatus != "activo" or perfil != "administrador":
+        return {"status": "error", "mensaje": "No autorizado para crear vacantes."}, 403
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        raise ValidacionError(errores=[{"campo": "body", "mensaje": "El cuerpo de la solicitud debe ser un JSON válido."}])
+
+    try: 
+        vacante = crear_vacante(data= data, administrador_id=usuario.id)
+    except Exception:
+        db.session.rollback()
+        raise
+    return exito(vacante.to_dict(completo=True), "Vacante creada exitosamente.", 201)
 
 """
     Lista de vacantes con filtros opcionaes: 

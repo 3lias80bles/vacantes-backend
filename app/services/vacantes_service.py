@@ -1,7 +1,9 @@
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import or_
 
+from app import db
+from app.utils.errors import ValidacionError
 from app.models.vacante_model import Vacante
 
 
@@ -116,3 +118,74 @@ def listar_vacantes_admin(id_usuario):
     return Vacante.query.filter(
         Vacante.id_usuario == id_usuario,
     ).order_by(Vacante.id.desc()).all()
+
+def crear_vacante(data, administrador_id=None):
+    """
+    Valida y registra una nueva vacante en la base de datos.
+    """
+    if not isinstance(data, dict):
+        raise ValidacionError("El cuerpo de la solicitud debe ser un objeto JSON válido.")
+
+    nombre = (data.get("nombre") or "").strip()
+    descripcion = (data.get("descripcion") or "").strip()
+
+    if not nombre:
+        raise ValidacionError("El nombre es obligatorio.")
+    if len(nombre) > 250:
+        raise ValidacionError("El nombre no puede superar los 250 caracteres.")
+
+    if not descripcion:
+        raise ValidacionError("La descripción es obligatoria.")
+
+    sueldo = data.get("sueldo")
+    sueldo_val = None
+    if sueldo is not None and sueldo != "":
+        if isinstance(sueldo, bool):
+            raise ValidacionError("El sueldo debe ser un número válido.")
+        try:
+            sueldo_val = float(sueldo)
+        except (ValueError, TypeError):
+            raise ValidacionError("El sueldo debe ser un número válido.")
+        if sueldo_val < 0:
+            raise ValidacionError("El sueldo no puede ser negativo.")
+
+    fecha_raw = data.get("fecha_publicacion")
+    fecha_pub = date.today()
+    if fecha_raw is not None and fecha_raw != "":
+        if not isinstance(fecha_raw, str):
+            raise ValidacionError("La fecha de publicación debe tener el formato YYYY-MM-DD.")
+        try:
+            fecha_pub = datetime.strptime(fecha_raw.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            raise ValidacionError("La fecha de publicación debe tener el formato YYYY-MM-DD.")
+
+    activa_raw = data.get("activa", True)
+    if isinstance(activa_raw, bool):
+        activa = activa_raw
+    elif isinstance(activa_raw, str) and activa_raw.strip().lower() in ("true", "false"):
+        activa = activa_raw.strip().lower() == "true"
+    else:
+        raise ValidacionError("El valor de 'activa' debe ser booleano (true o false).")
+
+    nueva_vacante = Vacante(
+        fecha_publicacion=fecha_pub,
+        nombre=nombre,
+        descripcion=descripcion,
+        detalle=(data.get("detalle") or "").strip() or None,
+        categoria=(data.get("categoria") or "").strip() or None,
+        ubicacion=(data.get("ubicacion") or "").strip() or None,
+        tipo_empleo=(data.get("tipo_empleo") or "").strip() or None,
+        sueldo=sueldo_val,
+        contacto=(data.get("contacto") or "").strip() or None,
+        activa=activa,
+        id_usuario=administrador_id,
+    )
+
+    try:
+        db.session.add(nueva_vacante)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    return nueva_vacante
