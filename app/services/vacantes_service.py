@@ -4,7 +4,7 @@ from math import isfinite
 from sqlalchemy import or_
 
 from app import db
-from app.errors import ValidacionError
+from app.errors import NoEncontrado, Prohibido, ValidacionError
 from app.models.vacante_model import Vacante
 
 
@@ -60,6 +60,7 @@ def buscar_vacantes(palabra_clave):
     consulta = consulta.filter(
         Vacante.fecha_publicacion.isnot(None),
         Vacante.fecha_publicacion <= date.today(),
+        Vacante.activa.isnot(False),
     )
 
     return consulta.order_by(
@@ -119,7 +120,7 @@ def filtrar_vacantes(categoria=None, ubicacion=None, tipo_empleo=None):
     Obtiene las vacantes que coinciden con los filtros indicados.
     Los filtros vacíos se ignoran.
     """
-    consulta = Vacante.query
+    consulta = Vacante.query.filter(Vacante.activa.isnot(False))
 
     if categoria:
         consulta = consulta.filter(Vacante.categoria.ilike(f"%{categoria}%"))
@@ -221,3 +222,25 @@ def crear_vacante(data, administrador_id=None):
         raise
 
     return nueva_vacante
+
+def eliminar_vacante(vacante_id, id_usuario):
+    """
+    Elimina una vacante del administrador indicado (borrado lógico).
+    La vacante queda con activa = False y deja de verse en las consultas públicas.
+    """
+    vacante = obtener_vacante_por_id(vacante_id)
+
+    # Inexistente o ya eliminada responden igual.
+    if vacante is None:
+        raise NoEncontrado("Vacante no encontrada.")
+    if vacante.id_usuario != id_usuario:
+        raise Prohibido("No tienes permiso para eliminar esta vacante.")
+
+    try:
+        vacante.activa = False
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    return vacante

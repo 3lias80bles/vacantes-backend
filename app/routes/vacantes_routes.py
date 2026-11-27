@@ -2,8 +2,10 @@ from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app import db
-from app.errors import NoEncontrado, ValidacionError
+from app.errors import NoEncontrado, Prohibido, ValidacionError
 from app.models.usuario_model import Usuario
+
+from app.services.vacantes_service import eliminar_vacante
 from app.services.vacantes_service import buscar_vacantes
 from app.services.vacantes_service import crear_vacante
 from app.services.vacantes_service import listar_vacantes
@@ -128,3 +130,22 @@ def obtener_vacante_endpoint(vacante_id):
         raise NoEncontrado("Vacante no encontrada.")
 
     return exito(vacante.to_dict(completo=True), "Vacante obtenida.") 
+
+@vacantes_bp.delete("/api/vacantes/<int:vacante_id>")
+@jwt_required()
+def eliminar_vacante_endpoint(vacante_id):
+    """
+    Elimina una vacante del administrador autenticado (borrado lógico).
+
+    Ex. DELETE /api/vacantes/5
+    Header: Authorization: Bearer <token>
+    """
+    usuario = db.session.get(Usuario, int(get_jwt_identity()))
+    if not usuario or usuario.perfil != "administrador" or usuario.estatus != "activo":
+        raise Prohibido()
+
+    vacante = eliminar_vacante(vacante_id, usuario.id)
+    return exito(
+        {"id": vacante.id, "activa": vacante.activa},
+        "Vacante eliminada correctamente.",
+    )
